@@ -1,0 +1,772 @@
+clc;
+clearvars;
+close all;
+
+% Input
+imagePath = '/Users/shuvroahmed/Desktop/Imaging Program Academics/POLIMI/SEM 1/IACV/HW/San Maurizio.jpg';
+I  = imread(imagePath);
+Ig = I;
+if size(I,3) == 3
+    Ig = rgb2gray(I);
+end
+H = size(Ig,1);
+W = size(Ig,2);
+
+figure; imshow(I); title('Input image');
+
+% Small helpers
+seg2line   = @(p1,p2) cross([p1(1);p1(2);1],[p2(1);p2(2);1]);
+normline   = @(l) l / norm(l(1:2));
+normpt     = @(p) p / p(3);
+segrow2line = @(s) normline(seg2line([s(1) s(2)], [s(3) s(4)]));
+
+% Step 0: detect a lot of segments (Canny + Hough)
+Ig_blur = imgaussfilt(Ig, 1.2);
+E = edge(Ig_blur,'canny');
+figure; imshow(E); title('Edges');
+
+[Hhough,Theta,Rho] = hough(E, 'Theta', -90:0.5:89.5);
+P = houghpeaks(Hhough, 80, 'Threshold', ceil(0.20 * max(Hhough(:))));
+houghSegs = houghlines(E, Theta, Rho, P, 'FillGap', 25, 'MinLength', 60);
+
+% Pack segments + quick stats (angle/midpoint/length)
+S   = zeros(numel(houghSegs),4);
+ang = zeros(1,numel(houghSegs));
+mx  = zeros(1,numel(houghSegs));
+my  = zeros(1,numel(houghSegs));
+len = zeros(1,numel(houghSegs));
+
+for k = 1:numel(houghSegs)
+    p1 = houghSegs(k).point1;
+    p2 = houghSegs(k).point2;
+
+    S(k,:) = [p1(1) p1(2) p2(1) p2(2)];
+
+    d = p2 - p1;
+    len(k) = norm(d);
+
+    a = atan2d(d(2), d(1));        % [-180,180]
+    a = mod(a + 90, 180) - 90;     % map to [-90,90]
+    ang(k) = a;
+
+    m = 0.5*(p1+p2);
+    mx(k) = m(1);
+    my(k) = m(2);
+end
+
+figure; imshow(I); hold on;
+title('All detected Hough segments');
+for k = 1:size(S,1)
+    plot([S(k,1) S(k,3)],[S(k,2) S(k,4)],'-','Color',[0.7 0.7 0.7],'LineWidth',0.5);
+end
+hold off;
+
+
+% Q1: VP(vertical) and VP(white-family) -> vanishing line of plane
+
+fprintf('\n[Q1] preview auto-picks (then choose auto/manual)\n');
+
+maskV = abs(ang) > 70 & len > 80;
+
+maskHwhite = (abs(ang) > 15 & abs(ang) < 75) ...
+          & (len > 90) ...
+          & (my < 0.60*H);
+
+Sv = S(maskV,:);
+Sh = S(maskHwhite,:);
+
+fprintf("AUTO picked: vertical=%d, white-family=%d\n", size(Sv,1), size(Sh,1));
+
+figure; imshow(I); hold on;
+title('Q1 auto preview: vertical=RED, white-family=CYAN');
+for i = 1:size(Sv,1)
+    plot([Sv(i,1) Sv(i,3)], [Sv(i,2) Sv(i,4)], 'r-', 'LineWidth', 2);
+end
+for i = 1:size(Sh,1)
+    plot([Sh(i,1) Sh(i,3)], [Sh(i,2) Sh(i,4)], 'c-', 'LineWidth', 2);
+end
+h1 = plot(nan,nan,'r-','LineWidth',2);
+h2 = plot(nan,nan,'c-','LineWidth',2);
+legend([h1 h2], {'Vertical','White-family'}, 'Location','southoutside');
+hold off;
+
+choice = lower(strtrim(input("Type 'a' to ACCEPT auto, or 'm' for MANUAL (3+3): ", "s")));
+usedManual = false;
+
+if choice ~= "a"
+    usedManual = true;
+
+    [Lv, Sv] = click_lines_with_segments(imagePath, 3, 'Q1 manual: click 3 vertical lines');
+    [Lh, Sh] = click_lines_with_segments(imagePath, 3, 'Q1 manual: click 3 white-family lines');
+
+    Vv = normpt(vp_from_lines_svd(Lv));
+    Vh = normpt(vp_from_lines_svd(Lh));
+else
+    Lv = zeros(3,size(Sv,1));
+    Lh = zeros(3,size(Sh,1));
+    for i = 1:size(Sv,1), Lv(:,i) = segrow2line(Sv(i,:)); end
+    for i = 1:size(Sh,1), Lh(:,i) = segrow2line(Sh(i,:)); end
+
+    [Vv, ~] = vp_ransac_from_lines(Lv, 6, 2.5);
+    [Vh, ~] = vp_ransac_from_lines(Lh, 6, 2.5);
+
+    if isempty(Vv) || isempty(Vh)
+        warning("Q1 auto VP failed -> switching to manual(3+3).");
+        usedManual = true;
+
+        [Lv, Sv] = click_lines_with_segments(imagePath, 3, 'Q1 manual: click 3 vertical lines');
+        [Lh, Sh] = click_lines_with_segments(imagePath, 3, 'Q1 manual: click 3 white-family lines');
+
+        Vv = normpt(vp_from_lines_svd(Lv));
+        Vh = normpt(vp_from_lines_svd(Lh));
+    else
+        Vv = normpt(Vv);
+        Vh = normpt(Vh);
+    end
+end
+
+l_inf_plane = cross(Vv, Vh);
+l_inf_plane = l_inf_plane / norm(l_inf_plane(1:2));
+
+disp('=== Q1 RESULT ===');
+disp('Vv = '); disp(Vv.');
+disp('Vh = '); disp(Vh.');
+disp("l_inf_plane = "); disp(l_inf_plane.');
+
+figure; imshow(I); hold on;
+title("Q1: segments + VPs + l_\infty (plane)");
+
+for i = 1:size(Sv,1)
+    plot([Sv(i,1) Sv(i,3)], [Sv(i,2) Sv(i,4)], 'r-', 'LineWidth', 2);
+end
+for i = 1:size(Sh,1)
+    plot([Sh(i,1) Sh(i,3)], [Sh(i,2) Sh(i,4)], 'y-', 'LineWidth', 2);
+end
+
+plot(Vv(1), Vv(2), 'ro', 'MarkerSize', 10, 'LineWidth', 3);
+plot(Vh(1), Vh(2), 'yo', 'MarkerSize', 10, 'LineWidth', 3);
+
+% Visual: connecting VPs lies on the vanishing line
+plot([Vv(1) Vh(1)], [Vv(2) Vh(2)], 'b--', 'LineWidth', 2);
+
+h1 = plot(nan,nan,'r-','LineWidth',2);
+h2 = plot(nan,nan,'y-','LineWidth',2);
+h3 = plot(nan,nan,'ro','MarkerSize',8,'LineWidth',2);
+h4 = plot(nan,nan,'yo','MarkerSize',8,'LineWidth',2);
+h5 = plot(nan,nan,'b--','LineWidth',2);
+legend([h1 h2 h3 h4 h5], ...
+    {'Vertical segs','White-family segs','Vv','Vh',"l_\infty"}, ...
+    'Location','southoutside');
+hold off;
+
+fprintf("Check l^T Vv = %.3e\n", l_inf_plane.'*Vv);
+fprintf("Check l^T Vh = %.3e\n", l_inf_plane.'*Vh);
+
+% Q2: vanishing point of cylinder axis direction
+
+fprintf('\n[Q2] preview auto-picks (then choose auto/manual)\n');
+
+maskAxis_auto = abs(ang) < 15 ...
+             & len > 120 ...
+             & (my < 0.60*H) ...
+             & (mx > 0.20*W);
+
+Saxis = S(maskAxis_auto,:);
+
+Laxis = zeros(3,size(Saxis,1));
+for i = 1:size(Saxis,1)
+    Laxis(:,i) = segrow2line(Saxis(i,:));
+end
+
+figure; imshow(I); hold on;
+title('Q2 auto preview: axis candidates (YELLOW)');
+
+maskHorizAll = abs(ang) < 15 & len > 80;
+ShorizAll = S(maskHorizAll,:);
+for i = 1:size(ShorizAll,1)
+    plot([ShorizAll(i,1) ShorizAll(i,3)], [ShorizAll(i,2) ShorizAll(i,4)], ...
+        '-', 'Color', [0 1 1]*0.6, 'LineWidth', 1);
+end
+for i = 1:size(Saxis,1)
+    plot([Saxis(i,1) Saxis(i,3)], [Saxis(i,2) Saxis(i,4)], 'y-', 'LineWidth', 2);
+end
+hold off;
+
+fprintf('Q2 auto-selected %d segments.\n', size(Laxis,2));
+choice = lower(strtrim(input("Type 'a' to ACCEPT auto, or 'm' for MANUAL(12): ", "s")));
+if isempty(choice), choice = 'a'; end
+useManualQ2 = (choice == 'm');
+
+if ~useManualQ2
+    [Vaxis, ~] = vp_ransac_from_lines(Laxis, 6, 2.5);
+    if isempty(Vaxis)
+        warning('Q2 auto VP unstable -> switching to manual(12).');
+        useManualQ2 = true;
+    else
+        Vaxis = normpt(Vaxis);
+    end
+end
+
+if useManualQ2
+    [Laxis, Saxis] = click_lines_with_segments(imagePath, 12, 'Q2 manual: click 12 lines parallel to axis');
+    Vaxis = normpt(vp_from_lines_svd(Laxis));
+end
+
+disp('=== Q2 RESULT ===');
+disp('Vaxis = '); disp(Vaxis.');
+
+figure; imshow(I); hold on;
+title('Q2: used segments + Vaxis');
+
+for i = 1:size(Saxis,1)
+    plot([Saxis(i,1) Saxis(i,3)], [Saxis(i,2) Saxis(i,4)], 'y-', 'LineWidth', 2);
+end
+plot(Vaxis(1), Vaxis(2), 'mo', 'MarkerSize', 10, 'LineWidth', 3);
+
+margin = 500;
+xlim([min(1,Vaxis(1))-margin, max(W,Vaxis(1))+margin]);
+ylim([min(1,Vaxis(2))-margin, max(H,Vaxis(2))+margin]);
+
+h1 = plot(nan,nan,'y-','LineWidth',2);
+h2 = plot(nan,nan,'mo','MarkerSize',8,'LineWidth',2);
+legend([h1 h2], {'Axis-direction segs','Vaxis'}, 'Location','southoutside');
+hold off;
+
+
+% Q3: plane rectification (affine + metric)
+
+fprintf('\n[Q3] plane rectification\n');
+
+l = l_inf_plane(:);
+l = l / l(3);
+
+outRef = imref2d([H W], [1 W], [1 H]);
+
+H_aff = [1 0 0;
+         0 1 0;
+         l(1) l(2) l(3)];
+
+tform_aff = projective2d(H_aff');
+I_aff = imwarp(I, tform_aff, 'OutputView', outRef);
+figure; imshow(I_aff); title('Q3: affine-rectified (same canvas)');
+
+HinvT = inv(H_aff)';
+Lv_aff = HinvT * Lv;
+Lh_aff = HinvT * Lh;
+
+for i = 1:size(Lv_aff,2), Lv_aff(:,i) = Lv_aff(:,i)/norm(Lv_aff(1:2,i)); end
+for i = 1:size(Lh_aff,2), Lh_aff(:,i) = Lh_aff(:,i)/norm(Lh_aff(1:2,i)); end
+
+Aeq = [];
+for i = 1:size(Lv_aff,2)
+    v = Lv_aff(1:2,i);
+    for j = 1:size(Lh_aff,2)
+        h = Lh_aff(1:2,j);
+        Aeq = [Aeq;
+               v(1)*h(1), (v(1)*h(2) + v(2)*h(1)), v(2)*h(2)];
+    end
+end
+
+[~,~,Vtmp] = svd(Aeq, 0);
+s = Vtmp(:,end);
+Smat = [s(1) s(2);
+        s(2) s(3)];
+
+if trace(Smat) < 0
+    Smat = -Smat;
+end
+
+[Achol, p] = chol(Smat, 'lower');
+if p ~= 0
+    [U,D] = eig((Smat+Smat')/2);
+    D = max(D, 1e-9*eye(2));
+    Achol = U*sqrt(D);
+end
+
+H_met = [inv(Achol) [0;0];
+         0 0 1];
+
+H_R = H_met * H_aff;
+
+tform_R = projective2d(H_R');
+I_R = imwarp(I, tform_R, 'OutputView', outRef);
+figure; imshow(I_R); title('Q3: metric-rectified (same canvas)');
+
+HinvT_R = inv(H_R)';
+Lv_R = HinvT_R * Lv;
+Lh_R = HinvT_R * Lh;
+
+for i = 1:size(Lv_R,2), Lv_R(:,i) = Lv_R(:,i)/norm(Lv_R(1:2,i)); end
+for i = 1:size(Lh_R,2), Lh_R(:,i) = Lh_R(:,i)/norm(Lh_R(1:2,i)); end
+
+fprintf('\nQ3 sanity (vertical family ⟂ white-family after rectif):\n');
+for i = 1:min(3,size(Lv_R,2))
+    v = Lv_R(1:2,i); dv = [-v(2); v(1)];
+    j = min(i, size(Lh_R,2));
+    h = Lh_R(1:2,j); dh = [-h(2); h(1)];
+    cosang = abs( (dv.'*dh) / (norm(dv)*norm(dh)) );
+    fprintf('pair %d: |cos| = %.4f\n', i, cosang);
+end
+
+% Pick one nodal point
+figure;
+ax = axes;
+imshow(I, 'Parent', ax);
+title(ax, 'Q3: click one non-apical nodal point N_{ij}');
+hold(ax, 'on');
+[xn, yn] = ginput(1);
+plot(ax, xn, yn, 'r+', 'MarkerSize', 15, 'LineWidth', 2);
+hold(ax, 'off');
+
+pN = [xn; yn; 1];
+pN_R = H_R * pN; pN_R = pN_R / pN_R(3);
+
+disp('Q3: clicked N_ij ='); disp([xn yn]);
+disp('Q3: rectified N_ij (up to similarity) ='); disp(pN_R(1:2).');
+
+% Optional scale fix (d = 1)
+figure;
+ax = axes;
+imshow(I, 'Parent', ax);
+title(ax, 'Q3: click two points with real distance d=1');
+hold(ax, 'on');
+[xs, ys] = ginput(2);
+plot(ax, xs, ys, 'r+', 'MarkerSize', 15, 'LineWidth', 2);
+hold(ax, 'off');
+
+p1 = H_R * [xs(1); ys(1); 1]; p1 = p1/p1(3);
+p2 = H_R * [xs(2); ys(2); 1]; p2 = p2/p2(3);
+
+dist_rect = norm(p1(1:2) - p2(1:2));
+scale = 1 / dist_rect;
+
+fprintf('dist_rect = %.4f, scale = %.6f\n', dist_rect, scale);
+
+pN_metric = scale * pN_R(1:2);
+disp('Q3: metric N_ij (d=1 units) ='); disp(pN_metric.');
+
+l_after = inv(H_aff)' * l_inf_plane;
+l_after = l_after / l_after(3);
+disp("After affine rectif, l_inf should be [0 0 1]^T:");
+disp(l_after.');
+fprintf("abs(l_after(1))=%.3e, abs(l_after(2))=%.3e\n", abs(l_after(1)), abs(l_after(2)));
+
+
+% Q4: K from orthogonal vanishing points
+
+format long g
+
+Vv_n    = Vv    / Vv(3);
+Vh_n    = Vh    / Vh(3);
+Vaxis_n = Vaxis / Vaxis(3);
+
+disp("Vv_n = "); disp(Vv_n.');
+disp("Vh_n = "); disp(Vh_n.');
+disp("Vaxis_n = "); disp(Vaxis_n.');
+
+v2 = Vv_n(1:2);
+a2 = Vaxis_n(1:2);
+cos_image = abs( dot(v2,a2) / (norm(v2)*norm(a2)) );
+fprintf("Image-space |cos(Vv,Vaxis)| = %.3f\n", cos_image);
+
+rowPQ = @(p,q) [ ...
+    p(1)*q(1), ...
+    p(1)*q(2) + p(2)*q(1), ...
+    p(2)*q(2), ...
+    p(1)*q(3) + p(3)*q(1), ...
+    p(2)*q(3) + p(3)*q(2), ...
+    p(3)*q(3) ...
+];
+
+A6 = [
+    rowPQ(Vv_n, Vh_n);
+    rowPQ(Vv_n, Vaxis_n);
+    rowPQ(Vh_n, Vaxis_n);
+    0 1 0 0 0 0
+];
+
+[~,~,Vsvd] = svd(A6);
+w = Vsvd(:,end);
+
+omega = [w(1) w(2) w(4);
+         w(2) w(3) w(5);
+         w(4) w(5) w(6)];
+omega = (omega + omega.')/2;
+
+if omega(3,3) < 0
+    omega = -omega;
+end
+
+disp("omega = "); disp(omega);
+
+fprintf("Residuals:\n");
+fprintf("Vv^T ω Vh    = %.3e\n", Vv_n.'*omega*Vh_n);
+fprintf("Vv^T ω Vaxis = %.3e\n", Vv_n.'*omega*Vaxis_n);
+fprintf("Vh^T ω Vaxis = %.3e\n", Vh_n.'*omega*Vaxis_n);
+fprintf("omega(1,2)   = %.3e\n", omega(1,2));
+
+omega = (omega + omega.')/2;
+if min(eig(omega)) < 0
+    omega = -omega;
+end
+
+Aup = chol(omega, 'upper');   % ~ K^{-1} up to scale
+K = inv(Aup);
+K = K / K(3,3);
+
+if K(1,1) < 0, K(:,1) = -K(:,1); end
+if K(2,2) < 0, K(:,2) = -K(:,2); end
+
+disp("K = "); disp(K);
+fprintf("fx=%.3f, fy=%.3f, u0=%.3f, v0=%.3f\n", K(1,1), K(2,2), K(1,3), K(2,3));
+
+Kin = inv(K);
+dv = Kin * Vv_n;    dv = dv / norm(dv);
+dh = Kin * Vh_n;    dh = dh / norm(dh);
+da = Kin * Vaxis_n; da = da / norm(da);
+
+fprintf("\nSanity (dot products ~0):\n");
+fprintf("dv·dh = %.3e\n", dv.'*dh);
+fprintf("dv·da = %.3e\n", dv.'*da);
+fprintf("dh·da = %.3e\n", dh.'*da);
+
+lh = cross(Vh_n, Vaxis_n);
+lh = lh / norm(lh(1:2));
+disp("Horizon line from (Vh,Vaxis):"); disp(lh.');
+fprintf("lh^T Vh    = %.3e\n", lh.'*Vh_n);
+fprintf("lh^T Vaxis = %.3e\n", lh.'*Vaxis_n);
+
+
+% Q5/Q6: cylinder + 3D rib points
+
+d_axis = inv(K) * Vaxis_n;
+d_axis = d_axis / norm(d_axis);
+
+disp("d_axis (camera coords) = ");
+disp(d_axis.');
+
+% Cross-section points (12) -> circle in rectified plane
+figure;
+ax = axes;
+imshow(I, 'Parent', ax);
+title(ax, 'Select 12 points on one cross-section curve (vault boundary)');
+hold(ax, 'on');
+[xc, yc] = ginput(12);
+plot(ax, xc, yc, 'r+', 'MarkerSize', 12, 'LineWidth', 2);
+hold(ax, 'off');
+
+P2D = zeros(12,2);
+for i = 1:12
+    p = H_R * [xc(i); yc(i); 1];
+    p = p / p(3);
+    P2D(i,:) = (scale * p(1:2)).';
+end
+
+[cc, R] = fit_circle_2d(P2D);
+fprintf("R = %.4f (d=1 units)\n", R);
+disp("cc = "); disp(cc.');
+
+% Estimate one point C0 on axis using silhouette rays
+Kin = inv(K);
+rays = zeros(3,12);
+for i = 1:12
+    ray = Kin*[xc(i); yc(i); 1];
+    rays(:,i) = ray / norm(ray);
+end
+
+d = d_axis(:); d = d / norm(d);
+tmp = [1;0;0];
+if abs(dot(tmp,d)) > 0.9, tmp = [0;1;0]; end
+e1 = tmp - d*dot(tmp,d); e1 = e1/norm(e1);
+e2 = cross(d,e1); e2 = e2/norm(e2);
+
+obj = @(ab) residuals_axis(ab, rays, d, e1, e2, R);
+
+ab0 = [0;0];
+opts = optimset('Display','iter','TolX',1e-10,'TolFun',1e-10);
+ab = fminsearch(@(ab) sum(obj(ab).^2), ab0, opts);
+
+C0 = ab(1)*e1 + ab(2)*e2;
+disp("C0 = "); disp(C0.');
+
+for i = 1:5
+    disti = lineLineDistance([0;0;0], rays(:,i), C0, d);
+    fprintf("dist[%d]=%.4f (target ~R=%.4f)\n", i, disti, R);
+end
+
+% Rib points -> intersect rays with cylinder
+figure;
+ax = axes;
+imshow(I, 'Parent', ax);
+title(ax, 'Click 12 points on one diagonal rib (same curve)');
+hold(ax, 'on');
+[xr, yr] = ginput(12);
+plot(ax, xr, yr, 'r+', 'MarkerSize', 12, 'LineWidth', 2);
+hold(ax, 'off');
+
+X3D = nan(12,3);
+for i = 1:12
+    ray = Kin*[xr(i); yr(i); 1];
+    ray = ray / norm(ray);
+
+    try
+        s_hit = intersect_ray_cylinder(ray, C0, d_axis, R);
+        X3D(i,:) = (s_hit * ray).';
+        fprintf("Point %02d OK\n", i);
+    catch ME
+        fprintf("Point %02d FAIL: %s\n", i, ME.message);
+    end
+end
+
+disp("X3D = ");
+disp(X3D);
+
+ok = all(isfinite(X3D),2);
+figure; plot3(X3D(ok,1), X3D(ok,2), X3D(ok,3), 'o-');
+grid on; axis equal;
+xlabel('X'); ylabel('Y'); zlabel('Z');
+title('3D rib points (camera coords)');
+
+% Axis distance to camera + closest point
+d = d_axis(:); d = d / norm(d);
+C0 = C0(:);
+
+fprintf("\nAxis: X(t) = C0 + t d\n");
+fprintf("Distance(camera center, axis) = %.6f\n", norm(cross(C0, d)));
+
+t0 = -dot(C0, d);
+Pclosest = C0 + t0*d;
+
+fprintf("t0 = %.6f\n", t0);
+disp("Closest point on axis = "); disp(Pclosest.');
+fprintf("Distance(camera center, closest point) = %.6f\n", norm(Pclosest));
+
+% Some views of the rib
+X = X3D(:,1); Y = X3D(:,2); Z = X3D(:,3);
+
+figure;
+plot3(X, Y, Z, 'o-', 'LineWidth', 1.5); grid on; axis equal;
+xlabel('X'); ylabel('Y'); zlabel('Z');
+title('Rib points (camera coords)');
+
+views = [45 25; 0 0; 90 0; 0 90];
+for k = 1:size(views,1)
+    figure;
+    plot3(X, Y, Z, 'o-', 'LineWidth', 1.5); grid on; axis equal;
+    xlabel('X'); ylabel('Y'); zlabel('Z');
+    title(sprintf('Rib view (az=%g, el=%g)', views(k,1), views(k,2)));
+    view(views(k,1), views(k,2));
+end
+
+t = 1:numel(X);
+tt = linspace(1,numel(X),200);
+Xs = spline(t,X,tt);
+Ys = spline(t,Y,tt);
+Zs = spline(t,Z,tt);
+
+figure;
+plot3(X, Y, Z, 'o'); hold on;
+plot3(Xs, Ys, Zs, '-', 'LineWidth', 1.8);
+grid on; axis equal;
+xlabel('X'); ylabel('Y'); zlabel('Z');
+title('Rib: points + spline');
+legend('points','spline');
+
+figure;
+plot3(X,Y,Z,'o-','LineWidth',1.5); grid on; axis equal;
+xlabel('X'); ylabel('Y'); zlabel('Z');
+title('Rib: view along X');
+view(0,0);
+
+tline = linspace(-2, 2, 50);
+L = C0 + d * tline;
+
+figure;
+plot3(X3D(:,1), X3D(:,2), X3D(:,3), 'o-'); hold on;
+plot3(L(1,:), L(2,:), L(3,:), '-', 'LineWidth', 2);
+grid on; axis equal;
+xlabel('X'); ylabel('Y'); zlabel('Z');
+legend('Rib points','Axis');
+title('Axis + rib points');
+
+% Save all figures + computed results
+
+outDir = fullfile(pwd,'Results');
+if ~exist(outDir, 'dir'), mkdir(outDir); end
+
+figs = findall(0, 'Type', 'figure');
+for k = 1:numel(figs)
+    fig = figs(k);
+    figName = sprintf('figure_%02d.png', fig.Number);
+    exportgraphics(fig, fullfile(outDir, figName), 'Resolution', 300);
+end
+fprintf('Saved figures -> %s\n', outDir);
+
+varsToSave = { ...
+    'Vv','Vh','Vaxis','l_inf_plane', ...
+    'H_aff','H_met','H_R','l_after', ...
+    'pN_R','pN_metric','scale','dist_rect', ...
+    'omega','K','lh', ...
+    'd_axis','R','cc','C0','X3D' ...
+};
+existsMask = cellfun(@(v) evalin('base', sprintf('exist(''%s'',''var'')', v)), varsToSave) > 0;
+varsToSave = varsToSave(existsMask);
+
+save(fullfile(outDir,'ComputedResults.mat'), varsToSave{:});
+fprintf('Saved ComputedResults.mat\n');
+
+fid = fopen(fullfile(outDir,'Results_Summary.txt'),'w');
+fprintf(fid, "===== RESULTS SUMMARY =====\n\n");
+if exist('Vv','var'),    fprintf(fid,"Vv = [%.15g %.15g %.15g]^T\n", Vv); end
+if exist('Vh','var'),    fprintf(fid,"Vh = [%.15g %.15g %.15g]^T\n", Vh); end
+if exist('Vaxis','var'), fprintf(fid,"Vaxis = [%.15g %.15g %.15g]^T\n\n", Vaxis); end
+if exist('l_inf_plane','var'), fprintf(fid,"l_inf_plane = [%.15g %.15g %.15g]^T\n\n", l_inf_plane); end
+
+if exist('K','var')
+    fprintf(fid,"K =\n");
+    fprintf(fid,"[%.15g %.15g %.15g;\n %.15g %.15g %.15g;\n %.15g %.15g %.15g]\n\n", K.');
+    fprintf(fid,"fx=%.6f fy=%.6f u0=%.6f v0=%.6f\n\n", K(1,1), K(2,2), K(1,3), K(2,3));
+end
+
+if exist('d_axis','var'), fprintf(fid,"d_axis = [%.15g %.15g %.15g]^T\n", d_axis); end
+if exist('R','var'), fprintf(fid,"R = %.15g\n", R); end
+if exist('cc','var'), fprintf(fid,"cc = [%.15g %.15g]^T\n", cc(1), cc(2)); end
+if exist('C0','var'), fprintf(fid,"C0 = [%.15g %.15g %.15g]^T\n\n", C0); end
+
+if exist('pN_metric','var')
+    fprintf(fid,"N_ij metric (d=1) = [%.15g %.15g]\n", pN_metric(1), pN_metric(2));
+end
+if exist('X3D','var')
+    ok = all(isfinite(X3D),2);
+    fprintf(fid,"\nX3D finite points: %d/%d\n", sum(ok), size(X3D,1));
+end
+fclose(fid);
+fprintf('Saved Results_Summary.txt\n');
+
+% Local functions
+
+function [vp, inliers] = vp_ransac_from_lines(L, minInliers, threshPx)
+N = size(L,2);
+vp = []; inliers = [];
+if N < 2, return; end
+
+bestCount = 0;
+bestIn = [];
+
+iters = min(500, N*(N-1)/2 * 5);
+for t = 1:iters
+    idx = randperm(N,2);
+    p = cross(L(:,idx(1)), L(:,idx(2)));
+    if abs(p(3)) < 1e-9, continue; end
+    p = p / p(3);
+
+    denom = sqrt(L(1,:).^2 + L(2,:).^2);
+    d = abs(L.' * p) ./ denom(:);
+
+    in = (d < threshPx);
+    c = sum(in);
+    if c > bestCount
+        bestCount = c;
+        bestIn = in;
+    end
+end
+
+if bestCount < minInliers, return; end
+
+Lin = L(:, bestIn);
+p = vp_from_lines_svd(Lin);
+vp = p / p(3);
+inliers = bestIn;
+end
+
+function [L, seg] = click_lines_with_segments(imagePath, nLines, titleStr)
+I = imread(imagePath);
+figure; imshow(I); title(titleStr); hold on;
+
+L   = zeros(3, nLines);
+seg = zeros(nLines, 4);
+
+for i = 1:nLines
+    disp(['Click TWO points for line ', num2str(i)]);
+    [x, y] = ginput(2);
+
+    seg(i,:) = [x(1) y(1) x(2) y(2)];
+    plot(x, y, 'c-', 'LineWidth', 2);
+
+    l = cross([x(1); y(1); 1], [x(2); y(2); 1]);
+    l = l / norm(l(1:2));
+    L(:, i) = l;
+end
+hold off;
+end
+
+function [c, R] = fit_circle_2d(P)
+x = P(:,1); y = P(:,2);
+A = [x y ones(size(x))];
+b = -(x.^2 + y.^2);
+u = A\b;
+
+a = u(1); bb = u(2); cc0 = u(3);
+c = [-a/2; -bb/2];
+R = sqrt((a^2 + bb^2)/4 - cc0);
+end
+
+function s = intersect_ray_cylinder(ray, C0, d, R)
+ray = ray(:); C0 = C0(:); d = d(:);
+d = d / norm(d);
+
+Pperp = eye(3) - d*d';
+
+A = ray.' * Pperp * ray;
+B = -2 * (ray.' * Pperp * C0);
+C = C0.' * Pperp * C0 - R^2;
+
+disc = B^2 - 4*A*C;
+if disc < 0
+    error("No real intersection (disc<0).");
+end
+
+s1 = (-B - sqrt(disc)) / (2*A);
+s2 = (-B + sqrt(disc)) / (2*A);
+
+cands = [s1 s2];
+cands = cands(cands > 1e-6);
+if isempty(cands)
+    error("Intersection behind camera.");
+end
+s = min(cands);
+end
+
+function r = residuals_axis(ab, rays, d, e1, e2, R)
+C0 = ab(1)*e1 + ab(2)*e2;
+m = size(rays,2);
+r = zeros(m,1);
+for i = 1:m
+    dist = lineLineDistance([0;0;0], rays(:,i), C0, d);
+    r(i) = dist - R;
+end
+end
+
+function dist = lineLineDistance(P0, u, Q0, v)
+u=u(:); v=v(:); P0=P0(:); Q0=Q0(:);
+w0 = P0 - Q0;
+
+a = u.'*u; b = u.'*v; c = v.'*v;
+d = u.'*w0; e = v.'*w0;
+
+den = a*c - b*b;
+if abs(den) < 1e-12
+    dist = norm(cross(w0,u))/norm(u);
+else
+    sc = (b*e - c*d)/den;
+    tc = (a*e - b*d)/den;
+    dP = w0 + sc*u - tc*v;
+    dist = norm(dP);
+end
+end
+
+function v = vp_from_lines_svd(L)
+[~,~,V] = svd(L', 0);
+v = V(:,end);
+v = v / v(3);
+end
