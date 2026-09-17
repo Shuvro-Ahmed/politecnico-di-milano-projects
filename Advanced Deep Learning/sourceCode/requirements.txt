@@ -1,0 +1,12 @@
+numpy
+pandas
+pillow
+opencv-python-headless
+scikit-learn
+albumentations
+segmentation-models-pytorch
+timm
+torch
+torchvision
+tqdm
+transformers

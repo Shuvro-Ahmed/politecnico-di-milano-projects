@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "adl-anomalydetection"
+version = "0.1.0"
+description = "Supervised segmentation ensemble for the ADL Spacepresso anomaly detection challenge"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "pandas",
+    "pillow",
+    "opencv-python-headless",
+    "scikit-learn",
+    "albumentations",
+    "segmentation-models-pytorch",
+    "timm",
+    "torch",
+    "torchvision",
+    "tqdm",
+    "transformers",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.scripts]
+spacepresso = "adl_anomaly.cli:main"

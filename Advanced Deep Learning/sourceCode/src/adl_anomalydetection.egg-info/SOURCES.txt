@@ -1,0 +1,13 @@
+pyproject.toml
+src/adl_anomaly/__init__.py
+src/adl_anomaly/cli.py
+src/adl_anomaly/data.py
+src/adl_anomaly/postprocess.py
+src/adl_anomaly/q8rle.py
+src/adl_anomaly/segmentation.py
+src/adl_anomalydetection.egg-info/PKG-INFO
+src/adl_anomalydetection.egg-info/SOURCES.txt
+src/adl_anomalydetection.egg-info/dependency_links.txt
+src/adl_anomalydetection.egg-info/entry_points.txt
+src/adl_anomalydetection.egg-info/requires.txt
+src/adl_anomalydetection.egg-info/top_level.txt

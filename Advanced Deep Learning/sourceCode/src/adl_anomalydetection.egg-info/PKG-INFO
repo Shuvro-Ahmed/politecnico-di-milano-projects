@@ -1,0 +1,17 @@
+Metadata-Version: 2.4
+Name: adl-anomalydetection
+Version: 0.1.0
+Summary: Supervised segmentation ensemble for the ADL Spacepresso anomaly detection challenge
+Requires-Python: >=3.10
+Requires-Dist: numpy
+Requires-Dist: pandas
+Requires-Dist: pillow
+Requires-Dist: opencv-python-headless
+Requires-Dist: scikit-learn
+Requires-Dist: albumentations
+Requires-Dist: segmentation-models-pytorch
+Requires-Dist: timm
+Requires-Dist: torch
+Requires-Dist: torchvision
+Requires-Dist: tqdm
+Requires-Dist: transformers
