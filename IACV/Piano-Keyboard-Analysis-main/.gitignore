@@ -1,0 +1,22 @@
+# Python virtual environment
+.venv/
+
+# Local venv created for this project
+# (relative path created by the setup step)
+iacvProject/
+
+# VS Code workspace settings
+.vscode/
+
+# Generated pipeline outputs
+data/frames/
+artifacts/
+results/
+outputs/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# OS junk
+.DS_Store

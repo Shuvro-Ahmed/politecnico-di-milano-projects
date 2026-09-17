@@ -1,0 +1,19 @@
+\section{Problem Statement}
+
+The objective of this project is to analyze a video of a played piano keyboard
+in order to identify the pressed keys at each instant.
+Given a monocular RGB video, the task is decomposed into multiple stages,
+including keyboard localization, identifying individual keys, tracking fingertip positions, and determining
+which keys are pressed over time.
+
+The system is required to operate on standard video without any
+specialized sensors.
+All detections must be expressed in the full image coordinate system
+to allow interaction between different processing stages.
+
+The main challenge arises from the presence of hands, reflections,
+and background elements, which make direct analysis on the full image
+difficult.
+For this reason, the processing pipeline is structured into multiple
+stages, where intermediate representations are used to simplify
+subsequent steps.

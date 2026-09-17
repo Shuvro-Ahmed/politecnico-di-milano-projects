@@ -1,0 +1,37 @@
+\section{Experiments and Results}
+
+\subsection{Dataset}
+
+The system was evaluated on multiple piano-playing videos.
+All videos were recorded using a static camera.
+Different video resolutions and quality levels were used.
+Both high-resolution and low-resolution videos were included.
+Some videos contained blur and compression artifacts.
+This was done to observe how the pipeline behaves
+under different visual conditions.
+
+\subsection{Qualitative Evaluation}
+
+Intermediate results were evaluated visually.
+The keyboard ROI,
+masked keyboard image,
+and key detection overlays
+were inspected.
+Detected white and black keys
+showed good alignment with the actual keyboard layout.
+
+\subsection{Integration Results}
+
+Detected key locations were combined with fingertip detection results.
+Since all outputs were expressed
+in full image coordinates,
+key--finger mapping was performed directly.
+Pressed keys were correctly identified
+in representative piano sequences.
+
+\subsection{Limitations}
+
+The method assumes a static camera and a fixed keyboard position.
+Strong reflections or severe occlusions
+may affect detection results.
+These cases were not addressed in this project.
