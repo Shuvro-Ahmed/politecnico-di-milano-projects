@@ -1,0 +1,45 @@
+## R session files
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+.Rproj
+
+## Temporary / system
+*.log
+*.aux
+*.toc
+*.out
+*.synctex.gz
+.DS_Store
+Thumbs.db
+
+## Outputs that should be regenerated, not versioned
+outputs/**/temp/
+
+## Very large processed datasets — re-create with scripts if needed
+data/processed/grins_v3/comunale_v3.csv
+
+## ISTAT shapefile (>100 MB, exceeds GitHub single-file limit).
+## Download manually from ISTAT and place in data/raw/istat/shapefile/.
+## See README for the download link.
+data/raw/istat/shapefile/
+
+## Saved model fits (~65 MB each) — regenerable by re-running
+## R/11_mixed_models.R and R/13_spatial_residual_check.R.
+## Not versioned to keep the repo lean.
+outputs/mixed_models/fit_*.rds
+outputs/mixed_models/shapes_with_residuals.rds
+
+## Stray root-level artefacts from interactive script runs
+/Rplots.pdf
+/Risultati_KMeans_v4.xlsx
+run_all.err
+
+## LaTeX build artefacts
+reports/**/*.pdf
+reports/**/*.aux
+reports/**/*.toc
+reports/**/*.log
+reports/**/*.out
+reports/**/*.synctex.gz

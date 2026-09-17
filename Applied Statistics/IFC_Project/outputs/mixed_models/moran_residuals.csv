@@ -1,0 +1,3 @@
+"test","statistic_I","expectation_I","variance_I","p_value"
+"Monte Carlo (999 perm)",0.234404997960271,NA,NA,0.001
+"Analytic",0.234404997960271,-0.00012685525815045,4.61866487825872e-05,2.85005578552943e-261

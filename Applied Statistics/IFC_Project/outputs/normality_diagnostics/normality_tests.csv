@@ -1,0 +1,11 @@
+"test","value"
+"Mean",-6.68810872328963e-17
+"SD",1.93250311016649
+"Skewness",0.354026981112418
+"Kurtosis (Normal = 3)",5.30592157861973
+"Anderson-Darling A",52.670103278313
+"Anderson-Darling p",3.7e-24
+"Jarque-Bera X2",3830.26595408144
+"Jarque-Bera p",0
+"Shapiro-Wilk W (n=5k)",0.982172273600537
+"Shapiro-Wilk p",1.29369318254749e-24

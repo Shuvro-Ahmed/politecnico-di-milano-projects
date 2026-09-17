@@ -1,0 +1,14 @@
+"Classe","Decile_1","Decile_2","Decile_3","Decile_4","Decile_5","Decile_6","Decile_7","Decile_8","Decile_9","Decile_10"
+"1.1.1 - Interno remoto scarsamente popolato",103,60,58,64,76,126,115,127,159,134
+"1.1.2 - Interno remoto a media densità di popolazione",8,5,12,10,20,16,25,15,11,4
+"1.2.1 - Interno prossimo scarsamente popolato",0,2,8,10,14,16,21,20,34,52
+"1.2.2 - Interno prossimo a media densità di popolazione",0,0,1,0,3,5,6,5,3,8
+"2.1.1.1 - Continuum urbano-rurale di montagna/collina interna scarsamente popolato",215,177,190,219,210,270,340,294,225,169
+"2.1.1.2 - Continuum urbano-rurale di montagna/collina interna a media densità di popolazione",207,137,128,88,61,63,46,41,42,22
+"2.1.2.1 - Continuum urbano-rurale litoraneo e/o di pianura scarsamente popolato",105,122,126,121,125,125,89,68,60,36
+"2.1.2.2 - Continuum urbano-rurale litoraneo e/o di pianura a media densità di popolazione",155,154,110,78,60,48,63,57,46,17
+"2.3 - Frangia metropolitana de facto o de jure",160,145,79,114,79,72,81,75,74,88
+"2.2 - Città media o capoluogo non FUA",35,19,8,7,7,11,2,2,0,0
+"3.2.1 - Area metropolitana de jure e de facto (non capoluogo)",77,77,63,58,48,47,46,39,48,40
+"3.2.2 - Capoluogo metropolitano",4,1,2,0,2,2,1,2,0,0
+"3.1 - Polo metropolitano de facto",7,2,1,0,0,0,1,0,0,0

@@ -1,0 +1,396 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[italian]{babel}
+\usepackage{amsmath, amssymb}
+\usepackage{geometry}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{caption}
+
+\geometry{margin=2.5cm}
+\hypersetup{colorlinks=true, linkcolor=blue, urlcolor=blue}
+
+\title{Guida alla presentazione: il filo narrativo completo del\\
+  progetto di modellazione predittiva dell'IFC}
+\author{Progetto di Applied Statistics --- Note di preparazione alla presentazione}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent
+Questo documento non è un report tecnico: è un supporto per parlare.
+Ripercorre l'intero progetto nell'ordine in cui va raccontato a
+voce, spiega ogni numero che compare sul poster, dichiara
+esplicitamente cosa è stato volutamente escluso e perché, e si
+chiude con una sezione di domande-e-risposte anticipate, in modo che
+nessuna domanda ragionevole del pubblico colga il presentatore
+impreparato. Leggere le sezioni 1--7 per provare la presentazione;
+leggere la sezione 8 la sera prima per provare la difesa.
+\end{abstract}
+
+\section{La tesi in una frase}
+
+\textbf{La fragilità comunale italiana è prevedibile e leggibile da
+un piccolo gruppo di indicatori socio-economici, ma una componente
+geografica residua mostra che il fenomeno non è puramente
+individuale --- è anche spaziale.}
+
+Tutto il resto del progetto sostiene questa frase. Se di tutta la
+presentazione dovesse sopravvivere una sola frase, dovrebbe essere
+questa.
+
+\section{La domanda di ricerca e perché conta}
+
+L'Italian Fragility Composite Index (IFC) è un indice ufficiale a
+livello comunale. Il progetto pone due domande:
+
+\begin{enumerate}[leftmargin=2em]
+  \item L'IFC può essere spiegato/predetto statisticamente da
+  indicatori socio-economici indipendenti (il panel GRINS V3)?
+  \item Se sì, cosa guida davvero la fragilità comunale, e la
+  spiegazione è puramente socio-economica o la geografia gioca un
+  ruolo indipendente?
+\end{enumerate}
+
+Questo conta perché se un piccolo insieme di indicatori leggibili
+riesce a ricostruire la maggior parte della varianza di un indice di
+fragilità ufficiale, quell'indice può essere monitorato a basso
+costo tra una pubblicazione ufficiale e l'altra, e i driver
+identificati diventano leve candidate per le politiche pubbliche.
+
+\section{I dati, in un paragrafo}
+
+\textbf{Target}: valori IFC grezzi per il 2019 e il 2021, da
+\texttt{IFC\_Final\_Analysis\_Sorted.xlsx}; coincide con i decili
+MFI ufficiali nel 95.6\% dei casi, confermando che è un proxy
+fedele dell'indice realmente usato dai decisori pubblici.
+\textbf{Predittori}: il panel comunale GRINS V3, 549 colonne grezze,
+trasformate in 326 covariate candidate (i conteggi normalizzati per
+la popolazione più una trasformazione log1p, i conteggi negativi
+normalizzati solo per la popolazione, le variabili di dimensione
+log-trasformate, i tassi lasciati invariati, tutto winsorizzato al
+1°/99° percentile per limitare l'influenza dei comuni anomali).
+\textbf{Campione}: 15{.}782 osservazioni, 7{.}886 comuni unici, due
+anni (2019, 2021). La cross-validation è sempre fatta dividendo
+comuni interi nei fold, mai per riga --- dividere per riga farebbe
+finire l'osservazione 2019 di un comune nel fold di training mentre
+la sua gemella 2021 finisce nel fold di test, facendo trapelare
+informazione e gonfiando l'R$^2$ in modo silenzioso.
+
+\section{La pipeline di modellazione, raccontata come sequenza di
+domande}
+
+Ogni passo esiste perché risponde a una domanda lasciata aperta dal
+passo precedente. Va raccontata in questo ordine.
+
+\subsection*{Passo 1 --- Quanto si può spiegare in assoluto?}
+Una regressione LASSO (CV a 10 fold, $\lambda_{\text{1se}}$) è
+eseguita su tutte le 326 covariate candidate. Ne seleziona 191.
+R$^2$ out-of-sample $= 0.825$ (CV ripetuta 5$\times$5
+panel-aware, 25 fold totali). Questo è il \emph{benchmark}: il
+tetto di ciò che un modello lineare può spiegare con questo set di
+feature. La prima reazione del prof era corretta: 191 covariate non
+si possono discutere una per una in nessuna presentazione.
+
+\subsection*{Passo 2 --- Lo stesso risultato si può raccontare con
+meno variabili?}
+Una pipeline iterativa riduce le 191 covariate a un set parsimonioso
+di 25, esplicito e riproducibile:
+\begin{enumerate}[leftmargin=2em]
+  \item \textbf{Potatura VIF}: si elimina la covariata con il
+  Variance Inflation Factor più alto, si ricalcola, si ripete, finché
+  tutti i VIF restanti sono sotto 10 (34 covariate eliminate così).
+  \item \textbf{Ranking top-N}: i superstiti vengono ordinati per
+  effetto standardizzato $|\beta \cdot \mathrm{SD}|$ e si tengono i
+  primi 25 --- è ciò che rende le variabili comparabili tra loro
+  nonostante vivano su scale naturali diverse.
+  \item \textbf{Filtro di significatività}: ogni covariata che
+  risulta non significativa una volta che le altre 24 sono nel
+  modello viene automaticamente sostituita dal candidato successivo
+  nel ranking, ripetendo finché tutte le 25 sono significative.
+\end{enumerate}
+Una decisione sostanziale esplicita precede tutti e tre i passi: la
+superficie comunale grezza viene esclusa a priori, su richiesta
+diretta del prof, perché una volta che ogni altra covariata è
+espressa come densità o tasso per-capite, un descrittore geografico
+statico come la superficie totale non è di per sé un driver di
+fragilità --- è una variabile di scala che il resto della pipeline
+controlla già implicitamente.
+
+Risultato: 25 covariate, tutte significative a $p < 10^{-6}$, VIF
+massimo $= 6.4$. R$^2$ out-of-sample $= 0.784$ --- una perdita
+controllata di soli $0.041$ rispetto al benchmark a 191 covariate,
+per una riduzione dell'87\% nella dimensione del modello.
+
+\subsection*{Passo 3 --- La geografia aggiunge qualcosa che le 25
+covariate non colgono?}
+Un modello lineare misto aggiunge una struttura di intercette
+casuali sopra gli stessi 25 effetti fissi:
+$$
+\text{IFC}_i = \beta_0 + \sum_{j=1}^{25}\beta_j X_{ji} +
+u_{r(i)} + v_{p(i)\mid r(i)} + \varepsilon_i,
+$$
+$$
+u_r \sim \mathcal{N}(0,\sigma_R^2), \qquad
+v_{p\mid r} \sim \mathcal{N}(0,\sigma_P^2),
+$$
+con $r$ che indicizza 20 regioni e $p$ che indicizza 107 provincie
+nidificate nelle regioni. Sono state stimate e confrontate quattro
+varianti (solo regione, regione/provincia nidificate, raggruppamento
+basato sulla tassonomia GRINS, e la combinazione di geografia e
+tassonomia); il modello geografico nidificato è il migliore dei
+quattro. R$^2$ out-of-sample $= 0.818$ --- a $0.007$ dal benchmark a
+191 covariate, recuperando quasi tutta l'accuratezza persa
+diventando parsimoniosi. La correlazione intra-classe attribuibile
+alla geografia è circa il 36\%: più di un terzo della varianza
+residua dopo i 25 effetti fissi è spiegata da in quale regione e
+provincia si trova un comune, non dal valore di nessuna covariata.
+
+\subsection*{Passo 4 --- Quel segnale geografico è già esaurito, o
+manca ancora qualcosa?}
+Il Moran's $I$ globale sui residui del modello nidificato, usando una
+matrice di pesi spaziali kNN-5 simmetrizzata:
+$$ I = 0.234, \quad p < 0.001. $$
+È positivo e altamente significativo: \emph{dopo} aver controllato
+per 25 covariate socio-economiche e intercette casuali
+regione/provincia, i comuni vicini condividono ancora fragilità
+inspiegata. La geografia non è del tutto assorbita dai confini
+amministrativi. La scomposizione locale LISA di un compagno, sugli
+stessi residui e stessi pesi, recupera indipendentemente
+$I = 0.236$ --- confermando il numero globale --- e lo localizza:
+598 comuni formano cluster significativi "High-High" (sotto-predetti,
+circondati da altri comuni sotto-predetti), 554 formano cluster
+"Low-Low", e 6{.}418 non mostrano un pattern locale significativo.
+
+Qui va inserito un limite esplicito e onesto: i modelli
+autoregressivi spaziali espliciti (SAR/CAR) sono stati tentati come
+passo successivo naturale, ma non sono convergiti in un tempo di
+calcolo praticabile su questa dimensione del dataset, e sono stati
+abbandonati piuttosto che riportati con numeri non attendibili.
+Questo va dichiarato apertamente, non nascosto.
+
+\subsection*{Passo 5 --- Il modello è statisticamente affidabile, o
+solo un R$^2$ fortunato?}
+Una batteria di diagnostiche aggiuntive, riassunta brevemente perché
+appartiene al report più che al poster: calibrazione per decile
+(Pearson/Spearman/CCC di Lin $= 0.885/0.890/0.879$), un intervallo
+di predizione empirico al 95\% di ampiezza 7.79 punti IFC, confronto
+AIC/BIC che confirma la preferenza per il modello nidificato, e
+diagnostica di normalità dei residui (skewness $0.35$, curtosi in
+eccesso $2.31$, Shapiro--Wilk $W = 0.982$) che mostra una deviazione
+lieve ma reale dalla normalità, documentata per intero con QQ plot
+nel report dedicato all'estensione parsimoniosa.
+
+\subsection*{Passo 6 --- Esiste un modo fondamentalmente diverso di
+arrivare alla stessa accuratezza?}
+In risposta diretta all'osservazione del prof ``PCR, non PCA'':
+\begin{itemize}[leftmargin=2em]
+  \item \textbf{PCR sulle 326 feature GRINS}: R$^2$ migliore $=
+  0.787$ a $K=100$ componenti --- sotto sia il modello parsimonioso
+  sia il benchmark. Le componenti principali sono scelte per
+  massimizzare la varianza in $X$, non il potere predittivo su $Y$;
+  qui le direzioni non coincidono.
+  \item \textbf{PCR sui 12 indicatori IFC grezzi} (le stesse
+  componenti usate dalla cascata di PCA descrittiva): R$^2 = 0.987$
+  a $K=12$, cioè usando \emph{tutta} l'informazione. Il residuo
+  dell'1.3\% è informativo, non rumore: rivela che la costruzione
+  ufficiale dell'IFC include uno step non lineare (quasi certamente
+  una trasformazione a rango percentile) oltre a un'aggregazione
+  lineare pesata delle sue 12 componenti.
+  \item \textbf{PLS contro PCR, testa a testa}, sulla stessa matrice
+  a 326 feature: PLS (che scegli le componenti per covarianza con
+  $Y$, non per sola varianza di $X$) domina PCR di circa 5 punti
+  percentuali di R$^2$ a ogni numero di componenti. PLS a $K=75$
+  raggiunge R$^2=0.825$, pareggiando quasi esattamente il benchmark
+  LASSO a 191 covariate ($0.826$).
+\end{itemize}
+Conclusione di questo passo: la riduzione dimensionale \emph{può}
+pareggiare l'accuratezza di LASSO, ma solo sacrificando
+l'interpretabilità --- 75 componenti latenti non hanno un significato
+sostanziale individuale, mentre le 191 (o le 25 parsimoniose) di
+LASSO sono variabili nominate, con segno, leggibili. LASSO resta il
+deliverable principale del progetto per motivi di interpretabilità,
+non perché sia più accurato.
+
+\section{I cinque driver sostanziali, spiegati}
+
+Effetti standardizzati ($\beta \cdot \mathrm{SD}$): la variazione di
+IFC per un aumento di una deviazione standard del predittore, a
+parità del resto del modello.
+
+\begin{center}
+\begin{tabular}{@{}cllr@{}}
+\toprule
+Rango & Variabile & Direzione & $\beta \cdot \mathrm{SD}$ \\
+\midrule
+1 & Massa contribuenti a reddito medio   & meno fragile & $-1.03$ \\
+2 & Densità totale dei contribuenti      & meno fragile & $-0.78$ \\
+3 & Massa di reddito dichiarato basso    & più fragile  & $+0.57$ \\
+4 & Quota di reddito da pensione         & più fragile  & $+0.56$ \\
+5 & Densità di piccole imprese di costruzioni & meno fragile & $-0.53$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Lettura: la fragilità è un equilibrio tra \emph{dinamismo
+economico} (una classe media ampia e presente; una base ampia di
+contribuenti; un tessuto di piccole imprese di costruzioni) e
+\emph{disagio economico} (concentrazione di contribuenti a reddito
+basso; forte dipendenza da reddito pensionistico piuttosto che da
+lavoro). Nessuno dei primi cinque driver è una variabile
+demografica o ambientale --- il segnale più forte è inequivocabilmente
+fiscale/economico.
+
+\section{Cosa è stato volutamente escluso dal poster, e perché}
+
+\begin{itemize}[leftmargin=2em]
+  \item \textbf{PCA descrittiva su GRINS} e \textbf{clustering
+  k-means sulle 12 sub-componenti IFC} (contributo di un compagno):
+  sono analisi esplorative/di contesto che confermano che la
+  fragilità è strutturata geograficamente \emph{prima} che venga
+  stimato alcun modello (es. un confronto con la tassonomia di
+  urbanizzazione GRINS, indipendente, mostra l'Italia Interna
+  concentrata nei decili 9--10, l'Italia Metropolitana nei decili
+  1--2). Motivano gli effetti casuali geografici ma non fanno parte
+  della pipeline predittiva, quindi vivono nell'introduzione/contesto,
+  non nei risultati principali.
+  \item \textbf{QQ plot di normalità dei residui e profilo
+  Box--Cox}: diagnostiche reali, riportate per intero nel report di
+  estensione parsimoniosa, ma troppo tecniche da leggere alla
+  distanza di un poster nei pochi secondi che un visitatore dedica a
+  ogni pannello.
+  \item \textbf{La tabella completa dei coefficienti a 191 covariate
+  e il log completo dell'iterazione VIF}: disponibili in appendice al
+  report del benchmark; elencarli sul poster non aggiungerebbe
+  informazione che un visitatore potrebbe assorbire sul momento.
+\end{itemize}
+
+\section{La conclusione da portare a casa, in tre punti}
+
+\begin{enumerate}[leftmargin=2em]
+  \item \textbf{GRINS predice bene l'IFC}: R$^2 \approx 0.82$
+  out-of-sample con solo 25 covariate interpretabili più una
+  gerarchia geografica --- entro un punto percentuale da un
+  benchmark a 191 covariate e da un modello PLS a 75 componenti.
+  \item \textbf{La narrazione è socio-economica, non demografica o
+  ambientale}: massa di classe media, densità di contribuenti e
+  tessuto di piccole imprese riducono la fragilità; concentrazione
+  di reddito basso e dipendenza da pensione la aumentano.
+  \item \textbf{La geografia conta oltre quanto colgono gli
+  indicatori}: una correlazione intra-classe del 36\% più un
+  Moran's $I = 0.234$ persistente e confermato localmente, dopo aver
+  controllato sia per le covariate sia per la geografia
+  amministrativa, mostrano che i modelli spaziali espliciti
+  (SAR/CAR) sono il passo successivo naturale, attualmente non
+  completato.
+\end{enumerate}
+
+\section{Domande anticipate e risposte preparate}
+
+\textbf{D: Perché LASSO e non Ridge o una selezione stepwise
+semplice?}\\
+LASSO esegue selezione di variabili (azzera esattamente alcuni
+coefficienti), cosa che Ridge non fa; questo è essenziale perché
+l'obiettivo è un modello interpretabile e sparso, non solo a basso
+errore. Un controllo con Elastic Net su $\alpha \in \{0.1, 0.25,
+0.5, 0.75, 1.0\}$ ha mostrato che l'errore di CV varia meno
+dell'1\% su tutto il range, confermando che la scelta di
+$\alpha=1$ (LASSO puro) non è arbitraria né fragile.
+
+\textbf{D: Qual è la differenza tra ``feature'' e ``covariata'' nelle
+slide?}\\
+Una feature è una variabile candidata creata durante l'ingegnerizzazione
+(326 in totale), prima di qualsiasi selezione. Una covariata è una
+feature che è effettivamente entrata in un modello di regressione
+stimato (191 dopo LASSO, 25 dopo il raffinamento parsimonioso). Le
+due parole seguono due fasi diverse della stessa pipeline, non due
+oggetti diversi.
+
+\textbf{D: Perché la cross-validation è fatta per comune e non per
+riga?}\\
+Ogni comune appare due volte (2019 e 2021). Dividere per riga
+permetterebbe a un anno di un comune di allenare il modello mentre
+l'altro anno dello \emph{stesso} comune lo testa, facendo trapelare
+informazione e gonfiando l'R$^2$ in modo otticamente favorevole.
+Dividere comuni interi nei fold elimina del tutto questa fuga di
+informazione.
+
+\textbf{D: Perché escludere la superficie totale?}\\
+Su feedback diretto del prof: una volta che ogni altra covariata è
+espressa come densità o tasso per-capite, la superficie è un
+descrittore di scala statico, non un driver di fragilità in questa
+specifica formulazione --- mantenerla avrebbe reintrodotto esattamente
+il tipo di covariata mecanica e non sostanziale che il modello
+parsimonioso è pensato per evitare.
+
+\textbf{D: Perché la PCR sui 12 indicatori IFC ufficiali raggiunge
+solo R$^2=0.987$ e non 1.0, se sono letteralmente le componenti
+dell'indice stesso?}\\
+Perché la PCR (e la PCA) possono recuperare solo combinazioni
+\emph{lineari} delle variabili di input. Il residuo dell'1.3\%
+indica che la costruzione ufficiale dell'IFC include uno step non
+lineare --- molto plausibilmente una trasformazione a rango
+percentile applicata a un certo punto --- che una proiezione lineare
+non può riprodurre del tutto. Questo è stato confermato dopo aver
+corretto un problema reale di qualità dei dati (righe
+comune--anno duplicate nel foglio ufficiale, che gonfiavano
+silenziosamente l'errore apparente all'1.8\% prima della
+deduplicazione).
+
+\textbf{D: Perché PLS batte PCR così costantemente?}\\
+PCR scegli le componenti per massimizzare la varianza dentro $X$ da
+sola; PLS scegli le componenti per massimizzare la covarianza tra
+$X$ e $Y$. Quando le direzioni di massima varianza e massima
+rilevanza predittiva non coincidono --- cosa che il salto osservato a
+bassissimi numeri di componenti nella curva di trade-off della PCR
+suggerisce essere il caso qui --- PLS ha un vantaggio strutturale che
+cresce con il disallineamento dimensionale.
+
+\textbf{D: Se PLS pareggia l'accuratezza di LASSO, perché LASSO
+resta il vostro deliverable principale?}\\
+L'accuratezza non è l'unico criterio che conta per il progetto. Una
+componente PLS è una combinazione lineare di un numero arbitrario di
+variabili originali senza un significato individualmente
+interpretabile; un coefficiente LASSO è attaccato a una variabile
+nominata, con segno, su cui un decisore pubblico può agire. Il
+brief del progetto chiede esplicitamente un benchmark
+\emph{interpretabile}, quindi LASSO è preferito a parità di
+accuratezza.
+
+\textbf{D: Perché il modello spaziale esplicito (SAR/CAR) non è
+stato completato?}\\
+È stato tentato seriamente; il modello non è convergiuto in un tempo
+di calcolo praticabile su un dataset di questa dimensione
+(15{.}782 osservazioni panel con una matrice di pesi spaziali a
+livello comunale densa). Piuttosto che riportare coefficienti non
+attendibili da una stima non convergente, il tentativo è documentato
+come un limite onesto e un passo successivo chiaramente
+identificato, supportato dall'evidenza del Moran's $I$/LISA che un
+tale modello è di fatto giustificato.
+
+\textbf{D: Cosa significa davvero la correlazione intra-classe del
+36\%?}\\
+Dopo che le 25 covariate a effetto fisso hanno fatto il loro lavoro,
+la varianza \emph{residua} dell'IFC si divide circa al 36\% a ``in
+quale regione/provincia si trova un comune'' (un'etichetta, non una
+covariata misurata) e al 64\% a tutto il resto (variazione comunale
+idiosincratica, rumore di misura, e la componente spazialmente
+correlata confermata in seguito da Moran's $I$/LISA).
+
+\textbf{D: Quanto dovremmo fidarci dei primi 5 driver --- potrebbero
+essere un artefatto della multicollinearità?}\\
+La selezione parsimoniosa impone VIF $<10$ per ogni covariata
+mantenuta (il VIF massimo osservato è $6.4$), specificamente per
+escludere questo dubbio; tutti i cinque driver principali restano
+significativi a $p<10^{-6}$ anche dopo che lo step di sostituzione
+iterativa ha rimosso i concorrenti collineari.
+
+\end{document}

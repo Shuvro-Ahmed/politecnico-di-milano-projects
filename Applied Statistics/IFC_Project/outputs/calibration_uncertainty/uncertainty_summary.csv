@@ -1,0 +1,7 @@
+"metric","value"
+"Pearson r",0.8854
+"Spearman r",0.8903
+"Lin's CCC",0.8789
+"Empirical 95% PI lower (residual)",-3.753
+"Empirical 95% PI upper (residual)",4.04
+"Empirical 95% PI width (IFC units)",7.793
