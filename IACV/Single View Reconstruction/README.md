@@ -141,14 +141,6 @@ It also highlighted the importance of camera calibration, scene geometry, and co
 
 The approach uses traditional geometric techniques rather than a learned depth estimation or reconstruction model.
 
-### Limitations
-
-- The reconstruction depends on scene-specific geometric assumptions.
-- Some features were selected manually or semi-automatically.
-- Depth cannot be uniquely recovered from one image without additional constraints.
-- The reference spacing defines relative units rather than independently verified physical dimensions.
-- Numerical calibration and reconstruction results require consistency checks; the supplied figures should not be interpreted as ground-truth-validated 3D geometry.
-
 ## Repository Contents
 
 The project folder contains the MATLAB implementation, the assignment materials, and the homework report.
