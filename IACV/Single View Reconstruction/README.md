@@ -53,8 +53,6 @@ $$
 
 This provides a projective constraint for subsequent rectification.
 
-![Vanishing geometry](assets/vanishing_geometry.png)
-
 *Selected architectural lines, vanishing points, and estimated vanishing line.*
 
 ### 2. Planar Rectification
@@ -112,8 +110,6 @@ Since a single image cannot uniquely determine these depths, additional geometri
 These included a planar model of the diagonal rib and an approximate circular-arc representation.
 
 The resulting sampled 3D points were visualized in the camera coordinate system.
-
-![Reconstructed rib](assets/rib_reconstruction.png)
 
 *MATLAB visualization of sampled 3D rib points. The plotted coordinates and scale require further verification.*
 
