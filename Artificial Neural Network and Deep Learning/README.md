@@ -337,3 +337,26 @@ The original challenge reports provide additional information about the experime
 - Ahmed Hassan
 
 Completed during the 2025–2026 academic year at Politecnico di Milano as part of the Erasmus Mundus Joint Master in Imaging.
+
+## Extra
+
+
+**Challenge 1 — Validation:** Five-fold GroupKFold keeps
+windows from the same sequence together. However,
+normalization is fitted before cross-validation, which
+may introduce preprocessing leakage into validation scores.
+
+**Challenge 1 — LightGBM:** Mean, standard deviation,
+minimum and maximum are calculated for the selected
+input features, including available subject attributes.
+
+**Challenge 2 — Masks:** The final notebook uses
+mask-informed ROI cropping followed by pixel-wise mask
+multiplication. Both operations are part of the implemented
+preprocessing pipeline.
+
+**Challenge 2 — Inference:** For each of three EfficientNet-B0
+models, logits are averaged across four test-time views
+(original, horizontal flip, vertical flip, and both).
+Softmax is then applied, and the probabilities from the
+three models are averaged.
